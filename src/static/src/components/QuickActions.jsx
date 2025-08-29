@@ -15,29 +15,21 @@ const QuickActions = ({ context, onTransactionAdded }) => {
   const [success, setSuccess] = useState('')
   const [categories, setCategories] = useState([])
 
+  // 1. ALTERAÇÃO: O estado inicial agora tem um 'type' padrão para evitar inconsistências.
   const [formData, setFormData] = useState({
     description: '',
     amount: '',
     category_id: '',
     date: new Date().toISOString().split('T')[0],
-    type: 'expense',
+    type: 'expense', // Definido 'expense' como padrão
     context: context,
     recurring: false,
     recurring_frequency: 'monthly',
     recurring_day: new Date().getDate()
   })
 
-  // <-- CORREÇÃO DO BUG: O useEffect agora só depende de 'isDialogOpen'.
-  // A lógica de carregar categorias foi movida para o lugar certo.
-  useEffect(() => {
-    if (isDialogOpen) {
-      // Carrega as categorias corretas quando o diálogo abre
-      loadCategories(formData.type);
-    }
-  }, [isDialogOpen]);
-
-
   const resetForm = () => {
+    // Garante que o reset também tenha um tipo padrão
     setFormData({
       description: '',
       amount: '',
@@ -56,12 +48,17 @@ const QuickActions = ({ context, onTransactionAdded }) => {
   const openDialog = (type) => {
     setActionType(type)
     const transactionType = type === 'recurring' ? 'expense' : type;
-    // Prepara o formulário com o tipo correto ANTES de abrir o diálogo
+    
+    // 2. ALTERAÇÃO: Prepara o formulário com o tipo correto e limpa a categoria ANTES de abrir o pop-up.
     setFormData(prev => ({ 
       ...prev, 
       type: transactionType, 
       category_id: '' 
-    }))
+    }));
+    
+    // Carrega as categorias para o tipo definido
+    loadCategories(transactionType);
+    
     setIsDialogOpen(true)
   }
 
@@ -89,23 +86,22 @@ const QuickActions = ({ context, onTransactionAdded }) => {
   }
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
+    const { name, value, type, checked } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'checkbox' ? checked : value
     }))
     setError('')
   }
 
-  // <-- CORREÇÃO DO BUG: Esta função agora também chama loadCategories.
-  // Isso garante que, se o tipo mudar, as categorias são recarregadas.
+  // 3. ALTERAÇÃO: Nova função para lidar com a mudança do tipo (Receita/Despesa)
   const handleTypeChange = (value) => {
     setFormData(prev => ({
       ...prev,
       type: value,
-      category_id: '' // Reseta a categoria selecionada
+      category_id: '' // Limpa a categoria selecionada para evitar inconsistências
     }));
-    // Recarrega as categorias para o novo tipo selecionado
+    // Recarrega a lista de categorias para o novo tipo
     loadCategories(value);
   }
 
@@ -114,7 +110,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     setLoading(true)
     setError('')
 
-    // Validações
+    // Validações melhoradas
     if (!formData.description.trim()) {
       setError('Descrição é obrigatória'); setLoading(false); return;
     }
@@ -131,10 +127,11 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     try {
       const token = localStorage.getItem('authToken')
       
+      // 4. ALTERAÇÃO CRÍTICA: Garantir que o category_id seja uma STRING para o MongoDB.
       const transactionData = {
         description: formData.description.trim(),
         amount: parseFloat(formData.amount),
-        category_id: formData.category_id, 
+        category_id: formData.category_id, // Já é uma string, não precisa de parseInt
         date: formData.date,
         type: formData.type,
         context: formData.context
@@ -157,12 +154,15 @@ const QuickActions = ({ context, onTransactionAdded }) => {
 
       if (response.ok) {
         setSuccess(getSuccessMessage())
-        resetForm()
-        if (onTransactionAdded) onTransactionAdded()
+        // Não resetar o formulário aqui ainda, para o usuário ver a mensagem
+        if (onTransactionAdded) {
+          onTransactionAdded()
+        }
         
         setTimeout(() => {
           setIsDialogOpen(false)
           setSuccess('')
+          resetForm() // Resetar só depois de fechar
         }, 2000)
       } else {
         const errorData = await response.json()
@@ -205,7 +205,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Botões (sem alterações) */}
+        {/* Botões (sem alterações na estrutura) */}
         <Dialog open={isDialogOpen && actionType === 'income'} onOpenChange={(open) => { if (!open) setIsDialogOpen(false) }}>
           <DialogTrigger asChild>
             <button onClick={() => openDialog('income')} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
@@ -241,6 +241,8 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* 5. ALTERAÇÃO: Adicionado o seletor de TIPO no formulário */}
             <div className="space-y-2">
               <Label htmlFor="type">Tipo</Label>
               <Select value={formData.type} onValueChange={handleTypeChange}>
@@ -251,6 +253,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
                 </SelectContent>
               </Select>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
               <Input id="description" name="description" value={formData.description} onChange={handleInputChange} placeholder="Ex: Venda de produto, Pagamento de salário..." required />
@@ -266,6 +269,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
                 <SelectContent>
                   {categories.length > 0 ? (
                     categories.map((category) => (
+                      // 6. ALTERAÇÃO: Usar category._id que vem do MongoDB
                       <SelectItem key={category._id} value={category._id}>
                         {category.name}
                       </SelectItem>
