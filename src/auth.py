@@ -5,10 +5,17 @@ from functools import wraps
 import os
 
 # Inicializar Firebase Admin SDK
-cred = credentials.Certificate('/home/ubuntu/Rezendeinteligente/src/borrachariadeley-76f94-firebase-adminsdk-fbsvc-f997c8f27d.json')
-firebase_admin.initialize_app(cred)
+# Tenta carregar as credenciais da variável de ambiente GOOGLE_APPLICATION_CREDENTIALS
+# ou de um caminho relativo se a variável não estiver definida (para desenvolvimento local)
+if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
+    cred = credentials.ApplicationDefault()
+else:
+    # Para desenvolvimento local, assume que o arquivo está na mesma pasta que auth.py
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    FIREBASE_CREDENTIALS_PATH = os.path.join(BASE_DIR, 'borrachariadeley-76f94-firebase-adminsdk-fbsvc-f997c8f27d.json')
+    cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
 
-def verify_token(f):
+firebase_admin.initialize_app(cred)def verify_token(f):
     """Decorator para verificar token de autenticação Firebase"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -86,4 +93,4 @@ def verify_user_token(token):
         return {'success': True, 'user': decoded_token}
     except Exception as e:
         return {'success': False, 'error': str(e)}
-
+        
