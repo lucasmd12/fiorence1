@@ -22,7 +22,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     amount: '',
     category_id: '',
     date: new Date().toISOString().split('T')[0],
-    type: '',
+    type: 'expense',
     context: context,
     recurring: false,
     recurring_frequency: 'monthly',
@@ -35,7 +35,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       amount: '',
       category_id: '',
       date: new Date().toISOString().split('T')[0],
-      type: '',
+      type: 'expense',
       context: context,
       recurring: false,
       recurring_frequency: 'monthly',
@@ -85,6 +85,15 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       [name]: type === 'checkbox' ? checked : value
     }))
     setError('')
+  }
+
+  const handleTypeChange = (value) => {
+    setFormData(prev => ({
+      ...prev,
+      type: value,
+      category_id: ''
+    }));
+    loadCategories(value);
   }
 
   const handleSubmit = async (e) => {
@@ -290,6 +299,20 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            
+            <div className="space-y-2">
+              <Label htmlFor="type">Tipo</Label>
+              <Select value={formData.type} onValueChange={handleTypeChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expense">Despesa</SelectItem>
+                  <SelectItem value="income">Receita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
               <Input
