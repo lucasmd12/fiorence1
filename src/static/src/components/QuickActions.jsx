@@ -59,13 +59,17 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`/api/categories?context=${context}&type=${type}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       })
       
       if (response.ok) {
         const data = await response.json()
         setCategories(data)
+        console.log('Categorias carregadas:', data) // Debug
+      } else {
+        console.error('Erro ao carregar categorias:', response.status)
       }
     } catch (error) {
       console.error('Erro ao carregar categorias:', error)
@@ -105,18 +109,21 @@ const QuickActions = ({ context, onTransactionAdded }) => {
         return
       }
 
+      // CORREÇÃO PRINCIPAL: Para MongoDB, category_id deve ser STRING
       const transactionData = {
         description: formData.description.trim(),
         amount: parseFloat(formData.amount),
-        category_id: parseInt(formData.category_id),
+        category_id: formData.category_id, // Manter como string para MongoDB
         date: formData.date,
         type: formData.type,
         context: formData.context
       }
 
+      console.log('Dados sendo enviados:', transactionData) // Debug
+
       // Se for recorrente, adicionar dados de recorrência
       if (actionType === 'recurring') {
-        transactionData.recurring = true
+        transactionData.is_recurring = true
         transactionData.recurring_frequency = formData.recurring_frequency
         transactionData.recurring_day = parseInt(formData.recurring_day)
       }
@@ -130,9 +137,12 @@ const QuickActions = ({ context, onTransactionAdded }) => {
         body: JSON.stringify(transactionData)
       })
 
-      const result = await response.json()
+      console.log('Resposta do servidor:', response.status) // Debug
 
-      if (result.success || response.ok) {
+      if (response.ok) {
+        const result = await response.json()
+        console.log('Transação criada:', result) // Debug
+        
         setSuccess(getSuccessMessage())
         resetForm()
         
@@ -147,7 +157,9 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           setSuccess('')
         }, 2000)
       } else {
-        setError(result.error || 'Erro ao criar transação')
+        const errorData = await response.json()
+        console.error('Erro do servidor:', errorData) // Debug
+        setError(errorData.error || 'Erro ao criar transação')
       }
     } catch (error) {
       console.error('Erro ao criar transação:', error)
@@ -318,14 +330,17 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               <Label htmlFor="category_id">Categoria</Label>
               <Select
                 value={formData.category_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
+                onValueChange={(value) => {
+                  console.log('Categoria selecionada:', value) // Debug
+                  setFormData(prev => ({ ...prev, category_id: value }))
+                }}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id.toString()}>
+                    <SelectItem key={category._id || category.id} value={category._id || category.id}>
                       {category.name}
                     </SelectItem>
                   ))}
@@ -424,4 +439,3 @@ const QuickActions = ({ context, onTransactionAdded }) => {
 }
 
 export default QuickActions
-
