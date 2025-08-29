@@ -47,14 +47,15 @@ const QuickActions = ({ context, onTransactionAdded }) => {
 
   const openDialog = async (type) => {
     setActionType(type)
-    setFormData(prev => ({ ...prev, type: type === 'recurring' ? 'expense' : type }))
+    const transactionType = type === 'recurring' ? 'expense' : type;
+    setFormData(prev => ({ ...prev, type: transactionType, category_id: '' }))
     setIsDialogOpen(true)
     
-    // Carregar categorias
-    await loadCategories(type === 'recurring' ? 'expense' : type)
+    await loadCategories(transactionType)
   }
 
   const loadCategories = async (type) => {
+    if (!type) return;
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`/api/categories?context=${context}&type=${type}`, {
@@ -67,12 +68,13 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       if (response.ok) {
         const data = await response.json()
         setCategories(data)
-        console.log('Categorias carregadas:', data) // Debug
       } else {
         console.error('Erro ao carregar categorias:', response.status)
+        setCategories([])
       }
     } catch (error) {
       console.error('Erro ao carregar categorias:', error)
+      setCategories([])
     }
   }
 
@@ -90,38 +92,42 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     setLoading(true)
     setError('')
 
+    if (!formData.type) {
+        setError('O tipo (receita ou despesa) é obrigatório.');
+        setLoading(false);
+        return;
+    }
+
     try {
       const token = localStorage.getItem('authToken')
       
-      // Validações
       if (!formData.description.trim()) {
         setError('Descrição é obrigatória')
+        setLoading(false)
         return
       }
       
       if (!formData.amount || parseFloat(formData.amount) <= 0) {
         setError('Valor deve ser maior que zero')
+        setLoading(false)
         return
       }
 
       if (!formData.category_id) {
         setError('Selecione uma categoria')
+        setLoading(false)
         return
       }
 
-      // CORREÇÃO PRINCIPAL: Para MongoDB, category_id deve ser STRING
       const transactionData = {
         description: formData.description.trim(),
         amount: parseFloat(formData.amount),
-        category_id: formData.category_id, // Manter como string para MongoDB
+        category_id: String(formData.category_id),
         date: formData.date,
         type: formData.type,
         context: formData.context
       }
 
-      console.log('Dados sendo enviados:', transactionData) // Debug
-
-      // Se for recorrente, adicionar dados de recorrência
       if (actionType === 'recurring') {
         transactionData.is_recurring = true
         transactionData.recurring_frequency = formData.recurring_frequency
@@ -137,32 +143,24 @@ const QuickActions = ({ context, onTransactionAdded }) => {
         body: JSON.stringify(transactionData)
       })
 
-      console.log('Resposta do servidor:', response.status) // Debug
-
       if (response.ok) {
         const result = await response.json()
-        console.log('Transação criada:', result) // Debug
-        
         setSuccess(getSuccessMessage())
-        resetForm()
         
-        // Chamar callback para atualizar a lista de transações
         if (onTransactionAdded) {
           onTransactionAdded()
         }
         
-        // Fechar dialog após 2 segundos
         setTimeout(() => {
           setIsDialogOpen(false)
           setSuccess('')
+          resetForm()
         }, 2000)
       } else {
         const errorData = await response.json()
-        console.error('Erro do servidor:', errorData) // Debug
         setError(errorData.error || 'Erro ao criar transação')
       }
     } catch (error) {
-      console.error('Erro ao criar transação:', error)
       setError('Erro interno. Tente novamente.')
     } finally {
       setLoading(false)
@@ -212,7 +210,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Nova Receita */}
         <Dialog open={isDialogOpen && actionType === 'income'} onOpenChange={(open) => {
           if (!open) {
             setIsDialogOpen(false)
@@ -235,7 +232,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogTrigger>
         </Dialog>
 
-        {/* Nova Despesa */}
         <Dialog open={isDialogOpen && actionType === 'expense'} onOpenChange={(open) => {
           if (!open) {
             setIsDialogOpen(false)
@@ -258,7 +254,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogTrigger>
         </Dialog>
 
-        {/* Agendar Recorrente */}
         <Dialog open={isDialogOpen && actionType === 'recurring'} onOpenChange={(open) => {
           if (!open) {
             setIsDialogOpen(false)
@@ -282,7 +277,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
         </Dialog>
       </div>
 
-      {/* Dialog Content */}
       <Dialog open={isDialogOpen} onOpenChange={(open) => {
         if (!open) {
           setIsDialogOpen(false)
@@ -296,7 +290,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Descrição */}
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
               <Input
@@ -309,7 +302,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               />
             </div>
 
-            {/* Valor */}
             <div className="space-y-2">
               <Label htmlFor="amount">Valor (R$)</Label>
               <Input
@@ -325,13 +317,11 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               />
             </div>
 
-            {/* Categoria */}
             <div className="space-y-2">
               <Label htmlFor="category_id">Categoria</Label>
               <Select
                 value={formData.category_id}
                 onValueChange={(value) => {
-                  console.log('Categoria selecionada:', value) // Debug
                   setFormData(prev => ({ ...prev, category_id: value }))
                 }}
               >
@@ -340,7 +330,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((category) => (
-                    <SelectItem key={category._id || category.id} value={category._id || category.id}>
+                    <SelectItem key={category._id || category.id} value={String(category._id || category.id)}>
                       {category.name}
                     </SelectItem>
                   ))}
@@ -348,7 +338,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               </Select>
             </div>
 
-            {/* Data */}
             <div className="space-y-2">
               <Label htmlFor="date">Data</Label>
               <Input
@@ -361,7 +350,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               />
             </div>
 
-            {/* Configurações de Recorrência (apenas para transações recorrentes) */}
             {actionType === 'recurring' && (
               <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
                 <h4 className="font-medium text-blue-900">Configurações de Recorrência</h4>
@@ -402,7 +390,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               </div>
             )}
 
-            {/* Mensagens */}
             {error && (
               <Alert variant="destructive">
                 <AlertDescription>{error}</AlertDescription>
@@ -415,7 +402,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               </Alert>
             )}
 
-            {/* Botões */}
             <div className="flex justify-end space-x-2 pt-4">
               <Button
                 type="button"
