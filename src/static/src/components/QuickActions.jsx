@@ -20,19 +20,21 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     amount: '',
     category_id: '',
     date: new Date().toISOString().split('T')[0],
-    type: 'expense', // <-- ALTERAÇÃO: Começa com 'expense' por padrão
+    type: 'expense',
     context: context,
     recurring: false,
     recurring_frequency: 'monthly',
     recurring_day: new Date().getDate()
   })
 
-  // <-- ALTERAÇÃO: useEffect para carregar categorias quando o tipo muda
+  // <-- CORREÇÃO DO BUG: O useEffect agora só depende de 'isDialogOpen'.
+  // A lógica de carregar categorias foi movida para o lugar certo.
   useEffect(() => {
     if (isDialogOpen) {
+      // Carrega as categorias corretas quando o diálogo abre
       loadCategories(formData.type);
     }
-  }, [formData.type, isDialogOpen]);
+  }, [isDialogOpen]);
 
 
   const resetForm = () => {
@@ -54,13 +56,17 @@ const QuickActions = ({ context, onTransactionAdded }) => {
   const openDialog = (type) => {
     setActionType(type)
     const transactionType = type === 'recurring' ? 'expense' : type;
-    setFormData(prev => ({ ...prev, type: transactionType, category_id: '' })) // <-- ALTERAÇÃO: Reseta a categoria
+    // Prepara o formulário com o tipo correto ANTES de abrir o diálogo
+    setFormData(prev => ({ 
+      ...prev, 
+      type: transactionType, 
+      category_id: '' 
+    }))
     setIsDialogOpen(true)
-    // O useEffect agora cuidará de chamar loadCategories
   }
 
   const loadCategories = async (type) => {
-    if (!type) return; // Não carrega se o tipo não estiver definido
+    if (!type) return;
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`/api/categories?context=${context}&type=${type}`, {
@@ -74,11 +80,11 @@ const QuickActions = ({ context, onTransactionAdded }) => {
         const data = await response.json()
         setCategories(data)
       } else {
-        setCategories([]) // Limpa categorias em caso de erro
+        setCategories([])
       }
     } catch (error) {
       console.error('Erro ao carregar categorias:', error)
-      setCategories([]) // Limpa categorias em caso de erro
+      setCategories([])
     }
   }
 
@@ -91,13 +97,16 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     setError('')
   }
 
-  // <-- ALTERAÇÃO: Handler específico para o tipo, para recarregar categorias
+  // <-- CORREÇÃO DO BUG: Esta função agora também chama loadCategories.
+  // Isso garante que, se o tipo mudar, as categorias são recarregadas.
   const handleTypeChange = (value) => {
     setFormData(prev => ({
       ...prev,
       type: value,
-      category_id: '' // Reseta a categoria selecionada ao mudar o tipo
+      category_id: '' // Reseta a categoria selecionada
     }));
+    // Recarrega as categorias para o novo tipo selecionado
+    loadCategories(value);
   }
 
   const handleSubmit = async (e) => {
@@ -125,7 +134,6 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       const transactionData = {
         description: formData.description.trim(),
         amount: parseFloat(formData.amount),
-        // <-- ALTERAÇÃO CRÍTICA: Enviar category_id como STRING, sem parseInt
         category_id: formData.category_id, 
         date: formData.date,
         type: formData.type,
@@ -167,42 +175,29 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     }
   }
 
+  // Funções getSuccessMessage, getDialogTitle, getDialogDescription (sem alterações)
   const getSuccessMessage = () => {
     switch (actionType) {
-      case 'income':
-        return 'Receita registrada com sucesso!'
-      case 'expense':
-        return 'Despesa registrada com sucesso!'
-      case 'recurring':
-        return 'Transação recorrente configurada com sucesso!'
-      default:
-        return 'Transação criada com sucesso!'
+      case 'income': return 'Receita registrada com sucesso!';
+      case 'expense': return 'Despesa registrada com sucesso!';
+      case 'recurring': return 'Transação recorrente configurada com sucesso!';
+      default: return 'Transação criada com sucesso!';
     }
   }
-
   const getDialogTitle = () => {
     switch (actionType) {
-      case 'income':
-        return 'Nova Receita'
-      case 'expense':
-        return 'Nova Despesa'
-      case 'recurring':
-        return 'Agendar Recorrente'
-      default:
-        return 'Nova Transação'
+      case 'income': return 'Nova Receita';
+      case 'expense': return 'Nova Despesa';
+      case 'recurring': return 'Agendar Recorrente';
+      default: return 'Nova Transação';
     }
   }
-
   const getDialogDescription = () => {
     switch (actionType) {
-      case 'income':
-        return 'Registre uma nova entrada de dinheiro'
-      case 'expense':
-        return 'Registre uma nova saída de dinheiro'
-      case 'recurring':
-        return 'Configure uma transação que se repete automaticamente'
-      default:
-        return 'Registre uma nova transação'
+      case 'income': return 'Registre uma nova entrada de dinheiro';
+      case 'expense': return 'Registre uma nova saída de dinheiro';
+      case 'recurring': return 'Configure uma transação que se repete automaticamente';
+      default: return 'Registre uma nova transação';
     }
   }
 
@@ -210,83 +205,35 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Nova Receita */}
-        <Dialog open={isDialogOpen && actionType === 'income'} onOpenChange={(open) => {
-          if (!open) {
-            setIsDialogOpen(false)
-            resetForm()
-          }
-        }}>
+        {/* Botões (sem alterações) */}
+        <Dialog open={isDialogOpen && actionType === 'income'} onOpenChange={(open) => { if (!open) setIsDialogOpen(false) }}>
           <DialogTrigger asChild>
-            <button 
-              onClick={() => openDialog('income')}
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="p-2 bg-green-100 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-green-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-gray-900">Nova Receita</p>
-                <p className="text-sm text-gray-600">Registrar entrada</p>
-              </div>
+            <button onClick={() => openDialog('income')} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="p-2 bg-green-100 rounded-lg"><TrendingUp className="w-5 h-5 text-green-600" /></div>
+              <div className="text-left"><p className="font-medium text-gray-900">Nova Receita</p><p className="text-sm text-gray-600">Registrar entrada</p></div>
             </button>
           </DialogTrigger>
         </Dialog>
-
-        {/* Nova Despesa */}
-        <Dialog open={isDialogOpen && actionType === 'expense'} onOpenChange={(open) => {
-          if (!open) {
-            setIsDialogOpen(false)
-            resetForm()
-          }
-        }}>
+        <Dialog open={isDialogOpen && actionType === 'expense'} onOpenChange={(open) => { if (!open) setIsDialogOpen(false) }}>
           <DialogTrigger asChild>
-            <button 
-              onClick={() => openDialog('expense')}
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="p-2 bg-red-100 rounded-lg">
-                <TrendingDown className="w-5 h-5 text-red-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-gray-900">Nova Despesa</p>
-                <p className="text-sm text-gray-600">Registrar saída</p>
-              </div>
+            <button onClick={() => openDialog('expense')} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="p-2 bg-red-100 rounded-lg"><TrendingDown className="w-5 h-5 text-red-600" /></div>
+              <div className="text-left"><p className="font-medium text-gray-900">Nova Despesa</p><p className="text-sm text-gray-600">Registrar saída</p></div>
             </button>
           </DialogTrigger>
         </Dialog>
-
-        {/* Agendar Recorrente */}
-        <Dialog open={isDialogOpen && actionType === 'recurring'} onOpenChange={(open) => {
-          if (!open) {
-            setIsDialogOpen(false)
-            resetForm()
-          }
-        }}>
+        <Dialog open={isDialogOpen && actionType === 'recurring'} onOpenChange={(open) => { if (!open) setIsDialogOpen(false) }}>
           <DialogTrigger asChild>
-            <button 
-              onClick={() => openDialog('recurring')}
-              className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Calendar className="w-5 h-5 text-blue-600" />
-              </div>
-              <div className="text-left">
-                <p className="font-medium text-gray-900">Agendar Recorrente</p>
-                <p className="text-sm text-gray-600">Configurar automático</p>
-              </div>
+            <button onClick={() => openDialog('recurring')} className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
+              <div className="p-2 bg-blue-100 rounded-lg"><Calendar className="w-5 h-5 text-blue-600" /></div>
+              <div className="text-left"><p className="font-medium text-gray-900">Agendar Recorrente</p><p className="text-sm text-gray-600">Configurar automático</p></div>
             </button>
           </DialogTrigger>
         </Dialog>
       </div>
 
       {/* Dialog Content */}
-      <Dialog open={isDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setIsDialogOpen(false)
-          resetForm()
-        }
-      }}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => { if (!open) { setIsDialogOpen(false); resetForm(); } }}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>{getDialogTitle()}</DialogTitle>
@@ -294,103 +241,53 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* <-- ALTERAÇÃO: Adicionado seletor de TIPO --> */}
             <div className="space-y-2">
               <Label htmlFor="type">Tipo</Label>
               <Select value={formData.type} onValueChange={handleTypeChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Selecione o tipo" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="expense">Despesa</SelectItem>
                   <SelectItem value="income">Receita</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Descrição */}
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
-              <Input
-                id="description"
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                placeholder="Ex: Venda de produto, Pagamento de salário..."
-                required
-              />
+              <Input id="description" name="description" value={formData.description} onChange={handleInputChange} placeholder="Ex: Venda de produto, Pagamento de salário..." required />
             </div>
-
-            {/* Valor */}
             <div className="space-y-2">
               <Label htmlFor="amount">Valor (R$)</Label>
-              <Input
-                id="amount"
-                name="amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                value={formData.amount}
-                onChange={handleInputChange}
-                placeholder="0,00"
-                required
-              />
+              <Input id="amount" name="amount" type="number" step="0.01" min="0.01" value={formData.amount} onChange={handleInputChange} placeholder="0,00" required />
             </div>
-
-            {/* Categoria */}
             <div className="space-y-2">
               <Label htmlFor="category_id">Categoria</Label>
-              <Select
-                value={formData.category_id}
-                onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
+              <Select value={formData.category_id} onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}>
+                <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
                 <SelectContent>
                   {categories.length > 0 ? (
                     categories.map((category) => (
-                      // <-- ALTERAÇÃO: Usar category._id que vem do MongoDB
                       <SelectItem key={category._id} value={category._id}>
                         {category.name}
                       </SelectItem>
                     ))
                   ) : (
-                    <p className="p-4 text-sm text-gray-500">Nenhuma categoria encontrada para este tipo.</p>
+                    <p className="p-4 text-sm text-gray-500">Nenhuma categoria encontrada.</p>
                   )}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Data */}
             <div className="space-y-2">
               <Label htmlFor="date">Data</Label>
-              <Input
-                id="date"
-                name="date"
-                type="date"
-                value={formData.date}
-                onChange={handleInputChange}
-                required
-              />
+              <Input id="date" name="date" type="date" value={formData.date} onChange={handleInputChange} required />
             </div>
-
-            {/* Configurações de Recorrência (apenas para transações recorrentes) */}
             {actionType === 'recurring' && (
               <div className="space-y-4 p-4 bg-blue-50 rounded-lg">
                 <h4 className="font-medium text-blue-900">Configurações de Recorrência</h4>
-                
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="recurring_frequency">Frequência</Label>
-                    <Select
-                      value={formData.recurring_frequency}
-                      onValueChange={(value) => setFormData(prev => ({ ...prev, recurring_frequency: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                    <Select value={formData.recurring_frequency} onValueChange={(value) => setFormData(prev => ({ ...prev, recurring_frequency: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="weekly">Semanal</SelectItem>
                         <SelectItem value="monthly">Mensal</SelectItem>
@@ -398,53 +295,18 @@ const QuickActions = ({ context, onTransactionAdded }) => {
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div className="space-y-2">
-                    <Label htmlFor="recurring_day">
-                      {formData.recurring_frequency === 'monthly' ? 'Dia do Mês' : 'Dia'}
-                    </Label>
-                    <Input
-                      id="recurring_day"
-                      name="recurring_day"
-                      type="number"
-                      min="1"
-                      max={formData.recurring_frequency === 'monthly' ? '31' : '365'}
-                      value={formData.recurring_day}
-                      onChange={handleInputChange}
-                    />
+                    <Label htmlFor="recurring_day">{formData.recurring_frequency === 'monthly' ? 'Dia do Mês' : 'Dia'}</Label>
+                    <Input id="recurring_day" name="recurring_day" type="number" min="1" max={formData.recurring_frequency === 'monthly' ? '31' : '365'} value={formData.recurring_day} onChange={handleInputChange} />
                   </div>
                 </div>
               </div>
             )}
-
-            {/* Mensagens */}
-            {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {success && (
-              <Alert className="border-green-200 bg-green-50">
-                <AlertDescription className="text-green-800">{success}</AlertDescription>
-              </Alert>
-            )}
-
-            {/* Botões */}
+            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
+            {success && <Alert className="border-green-200 bg-green-50"><AlertDescription className="text-green-800">{success}</AlertDescription></Alert>}
             <div className="flex justify-end space-x-2 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsDialogOpen(false)
-                  resetForm()
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" disabled={loading}>
-                {loading ? 'Salvando...' : 'Salvar'}
-              </Button>
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={loading}>{loading ? 'Salvando...' : 'Salvar'}</Button>
             </div>
           </form>
         </DialogContent>
