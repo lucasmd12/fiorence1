@@ -1,12 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TrendingUp, TrendingDown, Calendar, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 
 const QuickActions = ({ context, onTransactionAdded }) => {
@@ -22,12 +20,20 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     amount: '',
     category_id: '',
     date: new Date().toISOString().split('T')[0],
-    type: '',
+    type: 'expense', // <-- ALTERAÇÃO: Começa com 'expense' por padrão
     context: context,
     recurring: false,
     recurring_frequency: 'monthly',
     recurring_day: new Date().getDate()
   })
+
+  // <-- ALTERAÇÃO: useEffect para carregar categorias quando o tipo muda
+  useEffect(() => {
+    if (isDialogOpen) {
+      loadCategories(formData.type);
+    }
+  }, [formData.type, isDialogOpen]);
+
 
   const resetForm = () => {
     setFormData({
@@ -35,7 +41,7 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       amount: '',
       category_id: '',
       date: new Date().toISOString().split('T')[0],
-      type: '',
+      type: 'expense',
       context: context,
       recurring: false,
       recurring_frequency: 'monthly',
@@ -45,16 +51,16 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     setSuccess('')
   }
 
-  const openDialog = async (type) => {
+  const openDialog = (type) => {
     setActionType(type)
-    setFormData(prev => ({ ...prev, type: type === 'recurring' ? 'expense' : type }))
+    const transactionType = type === 'recurring' ? 'expense' : type;
+    setFormData(prev => ({ ...prev, type: transactionType, category_id: '' })) // <-- ALTERAÇÃO: Reseta a categoria
     setIsDialogOpen(true)
-    
-    // Carregar categorias
-    await loadCategories(type === 'recurring' ? 'expense' : type)
+    // O useEffect agora cuidará de chamar loadCategories
   }
 
   const loadCategories = async (type) => {
+    if (!type) return; // Não carrega se o tipo não estiver definido
     try {
       const token = localStorage.getItem('authToken')
       const response = await fetch(`/api/categories?context=${context}&type=${type}`, {
@@ -67,22 +73,31 @@ const QuickActions = ({ context, onTransactionAdded }) => {
       if (response.ok) {
         const data = await response.json()
         setCategories(data)
-        console.log('Categorias carregadas:', data) // Debug
       } else {
-        console.error('Erro ao carregar categorias:', response.status)
+        setCategories([]) // Limpa categorias em caso de erro
       }
     } catch (error) {
       console.error('Erro ao carregar categorias:', error)
+      setCategories([]) // Limpa categorias em caso de erro
     }
   }
 
   const handleInputChange = (e) => {
-    const { name, value, type, checked } = e.target
+    const { name, value } = e.target
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }))
     setError('')
+  }
+
+  // <-- ALTERAÇÃO: Handler específico para o tipo, para recarregar categorias
+  const handleTypeChange = (value) => {
+    setFormData(prev => ({
+      ...prev,
+      type: value,
+      category_id: '' // Reseta a categoria selecionada ao mudar o tipo
+    }));
   }
 
   const handleSubmit = async (e) => {
@@ -90,38 +105,33 @@ const QuickActions = ({ context, onTransactionAdded }) => {
     setLoading(true)
     setError('')
 
+    // Validações
+    if (!formData.description.trim()) {
+      setError('Descrição é obrigatória'); setLoading(false); return;
+    }
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      setError('Valor deve ser maior que zero'); setLoading(false); return;
+    }
+    if (!formData.category_id) {
+      setError('Selecione uma categoria'); setLoading(false); return;
+    }
+    if (!formData.type) {
+      setError('Selecione um tipo (Receita ou Despesa)'); setLoading(false); return;
+    }
+
     try {
       const token = localStorage.getItem('authToken')
       
-      // Validações
-      if (!formData.description.trim()) {
-        setError('Descrição é obrigatória')
-        return
-      }
-      
-      if (!formData.amount || parseFloat(formData.amount) <= 0) {
-        setError('Valor deve ser maior que zero')
-        return
-      }
-
-      if (!formData.category_id) {
-        setError('Selecione uma categoria')
-        return
-      }
-
-      // CORREÇÃO PRINCIPAL: Para MongoDB, category_id deve ser STRING
       const transactionData = {
         description: formData.description.trim(),
         amount: parseFloat(formData.amount),
-        category_id: formData.category_id, // Manter como string para MongoDB
+        // <-- ALTERAÇÃO CRÍTICA: Enviar category_id como STRING, sem parseInt
+        category_id: formData.category_id, 
         date: formData.date,
         type: formData.type,
         context: formData.context
       }
 
-      console.log('Dados sendo enviados:', transactionData) // Debug
-
-      // Se for recorrente, adicionar dados de recorrência
       if (actionType === 'recurring') {
         transactionData.is_recurring = true
         transactionData.recurring_frequency = formData.recurring_frequency
@@ -137,32 +147,20 @@ const QuickActions = ({ context, onTransactionAdded }) => {
         body: JSON.stringify(transactionData)
       })
 
-      console.log('Resposta do servidor:', response.status) // Debug
-
       if (response.ok) {
-        const result = await response.json()
-        console.log('Transação criada:', result) // Debug
-        
         setSuccess(getSuccessMessage())
         resetForm()
+        if (onTransactionAdded) onTransactionAdded()
         
-        // Chamar callback para atualizar a lista de transações
-        if (onTransactionAdded) {
-          onTransactionAdded()
-        }
-        
-        // Fechar dialog após 2 segundos
         setTimeout(() => {
           setIsDialogOpen(false)
           setSuccess('')
         }, 2000)
       } else {
         const errorData = await response.json()
-        console.error('Erro do servidor:', errorData) // Debug
         setError(errorData.error || 'Erro ao criar transação')
       }
     } catch (error) {
-      console.error('Erro ao criar transação:', error)
       setError('Erro interno. Tente novamente.')
     } finally {
       setLoading(false)
@@ -296,6 +294,21 @@ const QuickActions = ({ context, onTransactionAdded }) => {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            
+            {/* <-- ALTERAÇÃO: Adicionado seletor de TIPO --> */}
+            <div className="space-y-2">
+              <Label htmlFor="type">Tipo</Label>
+              <Select value={formData.type} onValueChange={handleTypeChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="expense">Despesa</SelectItem>
+                  <SelectItem value="income">Receita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             {/* Descrição */}
             <div className="space-y-2">
               <Label htmlFor="description">Descrição</Label>
@@ -330,20 +343,22 @@ const QuickActions = ({ context, onTransactionAdded }) => {
               <Label htmlFor="category_id">Categoria</Label>
               <Select
                 value={formData.category_id}
-                onValueChange={(value) => {
-                  console.log('Categoria selecionada:', value) // Debug
-                  setFormData(prev => ({ ...prev, category_id: value }))
-                }}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione uma categoria" />
                 </SelectTrigger>
                 <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category._id || category.id} value={category._id || category.id}>
-                      {category.name}
-                    </SelectItem>
-                  ))}
+                  {categories.length > 0 ? (
+                    categories.map((category) => (
+                      // <-- ALTERAÇÃO: Usar category._id que vem do MongoDB
+                      <SelectItem key={category._id} value={category._id}>
+                        {category.name}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <p className="p-4 text-sm text-gray-500">Nenhuma categoria encontrada para este tipo.</p>
+                  )}
                 </SelectContent>
               </Select>
             </div>
