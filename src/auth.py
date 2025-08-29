@@ -12,15 +12,21 @@ if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
 else:
     # Para desenvolvimento local, assume que o arquivo está na mesma pasta que auth.py
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    FIREBASE_CREDENTIALS_PATH = os.path.join(BASE_DIR, 'borrachariadeley-76f94-firebase-adminsdk-fbsvc-f997c8f27d.json')
+    FIREBASE_CREDENTIALS_PATH = os.path.join(
+        BASE_DIR,
+        'borrachariadeley-76f94-firebase-adminsdk-fbsvc-f997c8f27d.json'
+    )
     cred = credentials.Certificate(FIREBASE_CREDENTIALS_PATH)
 
-firebase_admin.initialize_app(cred)def verify_token(f):
+firebase_admin.initialize_app(cred)
+
+
+def verify_token(f):
     """Decorator para verificar token de autenticação Firebase"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         token = None
-        
+
         # Verificar se o token está no header Authorization
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
@@ -28,19 +34,20 @@ firebase_admin.initialize_app(cred)def verify_token(f):
                 token = auth_header.split(' ')[1]  # Bearer <token>
             except IndexError:
                 return jsonify({'error': 'Token inválido'}), 401
-        
+
         if not token:
             return jsonify({'error': 'Token de autenticação necessário'}), 401
-        
+
         try:
             # Verificar o token com Firebase
             decoded_token = auth.verify_id_token(token)
             request.user = decoded_token
             return f(*args, **kwargs)
-        except Exception as e:
+        except Exception:
             return jsonify({'error': 'Token inválido ou expirado'}), 401
-    
+
     return decorated_function
+
 
 def create_user(email, password, display_name=None):
     """Criar um novo usuário no Firebase"""
@@ -53,6 +60,7 @@ def create_user(email, password, display_name=None):
         return {'success': True, 'uid': user.uid, 'email': user.email}
     except Exception as e:
         return {'success': False, 'error': str(e)}
+
 
 def get_user_by_email(email):
     """Buscar usuário por email"""
@@ -70,6 +78,7 @@ def get_user_by_email(email):
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
+
 def update_user(uid, **kwargs):
     """Atualizar dados do usuário"""
     try:
@@ -77,6 +86,7 @@ def update_user(uid, **kwargs):
         return {'success': True, 'uid': user.uid}
     except Exception as e:
         return {'success': False, 'error': str(e)}
+
 
 def delete_user(uid):
     """Deletar usuário"""
@@ -86,6 +96,7 @@ def delete_user(uid):
     except Exception as e:
         return {'success': False, 'error': str(e)}
 
+
 def verify_user_token(token):
     """Verificar token do usuário"""
     try:
@@ -93,4 +104,3 @@ def verify_user_token(token):
         return {'success': True, 'user': decoded_token}
     except Exception as e:
         return {'success': False, 'error': str(e)}
-        
