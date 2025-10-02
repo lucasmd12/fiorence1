@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: rezende-inteligente
+    env: python
+    # Define a versão do Python
+    pythonVersion: '3.10.1'
+    
+    # --- BUILD COMMAND ---
+    # Sequência: Backend Python → Frontend React → Volta para raiz
+    buildCommand: |
+      # 1. Instalar dependências do backend Python
+      pip install -r requirements.txt
+      
+      # 2. Navegar para o frontend (src/static)
+      cd src/static
+      
+      # 3. Instalar dependências do React
+      npm install --legacy-peer-deps
+      
+      # 4. Buildar o frontend React
+      npm run build
+      
+      # 5. IMPORTANTE: Voltar para a raiz do projeto
+      cd ../..
+
+    # --- START COMMAND ---
+    # Inicia o servidor Flask a partir da raiz
+    startCommand: "gunicorn --bind 0.0.0.0:$PORT src.main:app"
+
+    # --- VARIÁVEIS DE AMBIENTE ---
+    envVars:
+      - key: MONGO_URI
+        fromSecret: true
+      - key: REDIS_URL
+        fromSecret: true
+      - key: SECRET_KEY
+        fromSecret: true
+      - key: CLOUDINARY_CLOUD_NAME
+        fromSecret: true
+      - key: CLOUDINARY_API_KEY
+        fromSecret: true
+      - key: CLOUDINARY_API_SECRET
+        fromSecret: true
+      - key: FIREBASE_SERVICE_ACCOUNT_BASE64
+        fromSecret: true
