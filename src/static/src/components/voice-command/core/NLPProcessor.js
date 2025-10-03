@@ -1,4 +1,4 @@
-// ARQUIVO COMPLETO: core/NLPProcessor.js - TODAS FUNCIONALIDADES
+// ARQUIVO COMPLETO: core/NLPProcessor.js - VERSÃO OTIMIZADA
 import { extractAmount } from "../extractors/AmountExtractor";
 import { findBestCategory } from "../extractors/CategoryExtractor";
 import { extractDate } from "../extractors/DateExtractor";
@@ -33,6 +33,7 @@ class VoiceNLPProcessor {
       description: extractDescription(normalizedCommand),
       date: extractDate(normalizedCommand),
       status: extractStatus(normalizedCommand),
+      // OTIMIZAÇÃO 1: A extração primária da categoria acontece aqui.
       category: this.extractCategoryWithID(normalizedCommand),
       recurring: extractRecurring(normalizedCommand),
       confidence: 0,
@@ -51,20 +52,29 @@ class VoiceNLPProcessor {
     return transaction;
   }
 
-  // CORREÇÃO CRÍTICA: Extrai categoria com ID correto
+  // Sua função original, perfeita.
   extractCategoryWithID(command) {
     const categoryResult = findBestCategory(command, this.categories);
     
     if (!categoryResult) {
-      // Busca categoria "Outros" como fallback
       const fallback = this.categories.find(cat => 
         cat.name.toLowerCase() === 'outros' || 
         cat.slug?.toLowerCase() === 'outros'
       );
-      return fallback || null;
+      // Retorna o objeto completo ou null
+      if (fallback) {
+        return {
+          id: fallback._id || fallback.id,
+          name: fallback.name,
+          slug: fallback.slug,
+          type: fallback.type,
+          emoji: fallback.emoji
+        };
+      }
+      return null;
     }
 
-    // Garante que retorna com ID correto
+    // Garante que retorna o objeto completo com ID correto
     return {
       id: categoryResult._id || categoryResult.id,
       name: categoryResult.name,
@@ -141,10 +151,11 @@ class VoiceNLPProcessor {
       }
     }
 
+    // OTIMIZAÇÃO 2: A extração de categoria baseada na descrição agora só acontece se a extração primária falhou.
     if (!enhanced.category && enhanced.description) {
-      const categoryResult = findBestCategory(enhanced.description, this.categories);
+      const categoryResult = this.extractCategoryWithID(enhanced.description);
       if (categoryResult) {
-        enhanced.category = this.extractCategoryWithID(enhanced.description);
+        enhanced.category = categoryResult;
         enhanced.contextEnhanced = true;
       }
     }
@@ -177,11 +188,12 @@ class VoiceNLPProcessor {
   }
 
   learnUserPattern(analysis) {
-    if (analysis.confidence > 0.7) {
+    if (analysis.confidence > 0.7 && analysis.category) { // Garante que há uma categoria para aprender
       const pattern = {
         command: analysis.normalizedCommand,
         type: analysis.type,
-        category: analysis.category?.slug,
+        // OTIMIZAÇÃO 3: Salva o objeto de categoria completo para uma "lembrança" mais rica.
+        category: analysis.category,
         timestamp: new Date()
       };
       const hash = this.hashCommand(analysis.normalizedCommand);
@@ -245,10 +257,9 @@ class VoiceNLPProcessor {
   }
 
   buildTransactionObject(analysis, context) {
-    // CORREÇÃO CRÍTICA: Usa ID correto da categoria
-    const categoryId = analysis.category 
-      ? String(analysis.category.id || analysis.category._id)
-      : null;
+    const categoryId = analysis.category ? String(analysis.category.id || analysis.category._id) : null;
+    // OTIMIZAÇÃO 4: Garante que o category_name está sempre presente se a categoria foi encontrada.
+    const categoryName = analysis.category ? analysis.category.name : null;
 
     return {
       intent: analysis.intent,
@@ -261,7 +272,7 @@ class VoiceNLPProcessor {
         due_date: analysis.date ? formatISO(analysis.date) : formatISO(new Date()),
         status: analysis.status,
         category_id: categoryId,
-        category_name: analysis.category?.name || null,
+        category_name: categoryName, // Campo agora preenchido de forma consistente
         is_recurring: analysis.recurring?.is_recurring || false,
         recurring_day: analysis.recurring?.recurring_day || null
       },
