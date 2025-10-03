@@ -1,4 +1,4 @@
-# ARQUIVO: src/main.py (Completo e com estrutura aprimorada)
+# ARQUIVO: src/main.py (Versão Final, Corrigida e Simplificada)
 
 import os
 import sys
@@ -11,14 +11,18 @@ from flask_cors import CORS
 from config import Config
 from database.mongodb import mongodb
 
-# Importar os blueprints dos módulos de rotas
-from routes.user_mongo import user_bp
-from routes.transactions_mongo import transactions_bp
-from routes.categories_mongo import categories_bp
-from routes.auth import auth_bp
-from routes.recurring import recurring_bp
-from routes.document_processing import document_processing_bp
-from routes.reports_export import reports_export_bp
+# --- IMPORTAÇÃO CENTRALIZADA (A CORREÇÃO PRINCIPAL) ---
+# Graças ao seu 'src/routes/__init__.py', podemos importar todos os blueprints
+# de forma limpa e segura a partir do pacote 'routes'.
+from routes import (
+    auth_bp,
+    categories_bp,
+    document_processing_bp,
+    recurring_bp,
+    reports_export_bp,
+    transactions_bp,
+    user_bp
+)
 
 # --- Configuração da Aplicação Flask ---
 # Aponta para 'static/dist' onde o Vite coloca os arquivos buildados
@@ -33,7 +37,7 @@ CORS(app)
 # 1. Crie um Blueprint "pai" para agrupar todas as rotas da API sob um único prefixo.
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
-# 2. Registre todos os blueprints de funcionalidades DENTRO do blueprint 'api_bp'.
+# 2. Registre todos os blueprints importados DENTRO do blueprint 'api_bp'.
 #    O Flask irá aninhar os prefixos. Por exemplo, document_processing_bp (com prefixo '/documents')
 #    se tornará '/api/documents'.
 api_bp.register_blueprint(user_bp)
