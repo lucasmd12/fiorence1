@@ -12,8 +12,12 @@ from .modules.document_processing import (
     utilities
 )
 
-# Criar Blueprint principal
-document_processing_bp = Blueprint('document_processing', __name__)
+# Criar Blueprint principal com prefixo correto
+document_processing_bp = Blueprint(
+    'document_processing',
+    __name__,
+    url_prefix='/documents'  # ⚠️ Importante para manter o /api/documents no main.py
+)
 
 # Registrar rotas de cada módulo no Blueprint
 transaction_processor.register_routes(document_processing_bp)
