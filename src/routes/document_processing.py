@@ -3,27 +3,28 @@
 
 from flask import Blueprint
 
-# Importar módulos
-from .modules.document_processing import (
-    upload_handler,
-    transaction_processor,
-    category_manager,
-    transaction_saver,
-    utilities
-)
+# 1. Importar os módulos do subdiretório 'document_processing'.
+#    A sintaxe '.document_processing' refere-se ao pacote (a pasta)
+#    e de lá importamos os arquivos .py (os módulos).
+from .document_processing import transaction_processor
+from .document_processing import category_manager
+from .document_processing import transaction_saver
+from .document_processing import utilities
+# Adicionei o upload_handler que estava no seu exemplo original, caso seja necessário.
+# from .document_processing import upload_handler
 
-# Criar Blueprint principal com prefixo correto
-document_processing_bp = Blueprint(
-    'document_processing',
-    __name__,
-    url_prefix='/documents'  # ⚠️ Importante para manter o /api/documents no main.py
-)
+# 2. Criar o Blueprint principal SEM o url_prefix.
+#    O prefixo será adicionado nas próprias rotas dentro de cada módulo.
+#    Isso centraliza a lógica de roteamento nos arquivos finais.
+document_processing_bp = Blueprint('document_processing', __name__)
 
-# Registrar rotas de cada módulo no Blueprint
+# 3. Registrar as rotas de cada módulo no Blueprint principal.
+#    Cada função 'register_routes' adicionará suas rotas ao 'document_processing_bp'.
+# upload_handler.register_routes(document_processing_bp) # Descomente se este módulo também tiver rotas
 transaction_processor.register_routes(document_processing_bp)
 category_manager.register_routes(document_processing_bp)
 transaction_saver.register_routes(document_processing_bp)
 utilities.register_routes(document_processing_bp)
 
-# Exportar para uso no projeto
+# 4. Exportar o Blueprint montado para ser usado no app principal (main.py).
 __all__ = ['document_processing_bp']
