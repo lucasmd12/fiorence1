@@ -1,16 +1,17 @@
-# src/routes/modules/document_processing/category_manager.py
+# ARQUIVO: src/routes/document_processing/category_manager.py
 # Responsável por: Categorização dinâmica e sugestões de categorias
 
 from flask import request, jsonify
 from models.category_mongo import Category
-from auth import verify_token  # Adicionada a importação para proteger a nova rota
+from auth import verify_token
 
 def register_routes(bp):
     """Registra rotas deste módulo no Blueprint"""
     
     # =================================================================
-    # ROTA EXISTENTE (Sem alterações)
+    # ROTA 1: Preview de Categorias
     # =================================================================
+    # CORREÇÃO: Adicionado o prefixo '/documents' para corresponder à estrutura final.
     @bp.route('/documents/preview-categories', methods=['POST'])
     def preview_auto_categories():
         """Visualizar categorização automática para uma lista de descrições"""
@@ -42,8 +43,9 @@ def register_routes(bp):
             return jsonify({'success': False, 'error': f'Erro interno: {str(e)}'}), 500
 
     # =================================================================
-    # === NOVA ROTA DE DIAGNÓSTICO (A Via Neural para o VoiceCommand) ===
+    # ROTA 2: Sugestão de Categoria Única (Diagnóstico)
     # =================================================================
+    # CORREÇÃO: Adicionado o prefixo '/documents' aqui também.
     @bp.route('/documents/suggest-category', methods=['POST'])
     @verify_token # Protegemos a rota, pois ela acessa dados do usuário
     def suggest_single_category(current_user_uid):
